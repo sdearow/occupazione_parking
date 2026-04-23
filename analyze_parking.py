@@ -622,5 +622,171 @@ else:
 print(f"\n  % veicoli parcheggiati — media: {avg_pct_parked_all:.1f}%  "
       f"| diurno: {avg_pct_parked_day:.1f}%  | notturno: {avg_pct_parked_night:.1f}%")
 
+# ---------------------------------------------------------------------------
+# 9. Stime a scala di città (calibrazione su traffico reale di picco)
+# ---------------------------------------------------------------------------
+print("\nSTEP 9: Stime a scala di città")
+
+# --- Parametro di calibrazione ---
+# Veicoli in movimento nell'ora di punta stimati da fonti esterne (es. conteggi traffico Roma)
+# Modifica questo valore se disponi di un riferimento aggiornato.
+REF_PEAK_VEHICLES = 300_000   # veicoli in movimento al picco (08:30)
+
+# Veicoli in movimento al picco nel campione FCD
+peak_hour = int(df_hourly_usage.loc[df_hourly_usage["avg_pct_moving"].idxmax(), "hour"])
+n_moving_peak_sample = float(df_hourly_usage.loc[
+    df_hourly_usage["hour"] == peak_hour, "avg_n_moving"
+].iloc[0])
+
+SCALE = REF_PEAK_VEHICLES / n_moving_peak_sample
+implied_daily_fleet = df_hourly_usage["avg_n_active"].iloc[0] * SCALE
+
+print(f"  Riferimento esterno picco ({peak_hour}:30): {REF_PEAK_VEHICLES:,} veicoli")
+print(f"  Campione FCD al picco:                    {n_moving_peak_sample:,.0f} veicoli")
+print(f"  Fattore di espansione:                    {SCALE:.1f}×")
+print(f"  Flotta giornaliera attiva stimata:        {implied_daily_fleet:,.0f} veicoli")
+
+# --- Espansione del profilo orario ---
+df_city = df_hourly_usage.copy()
+df_city["city_n_active"]  = (df_city["avg_n_active"]  * SCALE).round(0).astype(int)
+df_city["city_n_moving"]  = (df_city["avg_n_moving"]  * SCALE).round(0).astype(int)
+df_city["city_n_parked"]  = (df_city["avg_n_parked"]  * SCALE).round(0).astype(int)
+df_city["avg_pct_moving"]  = df_city["avg_pct_moving"]
+df_city["avg_pct_parked"]  = df_city["avg_pct_parked"]
+
+# --- Espansione on/off-street (buffer 0m e 2m) ---
+# % on/off-street derivata dall'analisi AC_VEI (se disponibile) o dai valori di default
+if df_buffer is not None:
+    pct_on_0m  = float(df_buffer.loc[df_buffer.buffer_m == 0,  "pct_on_street"].iloc[0]) / 100
+    pct_on_2m  = float(df_buffer.loc[df_buffer.buffer_m == 2,  "pct_on_street"].iloc[0]) / 100
+    pct_on_5m  = float(df_buffer.loc[df_buffer.buffer_m == 5,  "pct_on_street"].iloc[0]) / 100
+    pct_on_10m = float(df_buffer.loc[df_buffer.buffer_m == 10, "pct_on_street"].iloc[0]) / 100
+    has_buffer_data = True
+else:
+    # Valori dall'analisi precedente (già eseguita dall'utente)
+    pct_on_0m, pct_on_2m, pct_on_5m, pct_on_10m = 0.650, 0.764, 0.843, 0.901
+    has_buffer_data = False
+    print("  [Valori on/off-street da analisi precedente: 0m=65%, 2m=76.4%, 5m=84.3%, 10m=90.1%]")
+
+# Stime orarie con on/off-street
+df_city["city_n_parked_onstreet_0m"]  = (df_city["city_n_parked"] * pct_on_0m).round(0).astype(int)
+df_city["city_n_parked_offstreet_0m"] = df_city["city_n_parked"] - df_city["city_n_parked_onstreet_0m"]
+df_city["city_n_parked_onstreet_2m"]  = (df_city["city_n_parked"] * pct_on_2m).round(0).astype(int)
+df_city["city_n_parked_offstreet_2m"] = df_city["city_n_parked"] - df_city["city_n_parked_onstreet_2m"]
+
+df_city.to_csv(os.path.join(RESULTS, "09_stima_citta_oraria.csv"), index=False)
+
+# --- Sintesi per fascia ---
+night_city = df_city[df_city["hour"].isin(night_hours)]
+day_city   = df_city[~df_city["hour"].isin(night_hours)]
+
+def city_summary(df_sub, label):
+    n_p   = df_sub["city_n_parked"].mean()
+    n_m   = df_sub["city_n_moving"].mean()
+    n_on0 = df_sub["city_n_parked_onstreet_0m"].mean()
+    n_on2 = df_sub["city_n_parked_onstreet_2m"].mean()
+    area0 = n_on0 * AREA_VEI_MQ / 1e6        # km²
+    area2 = n_on2 * AREA_VEI_MQ / 1e6
+    surf  = 135.142                           # km² superficie carrabile
+    return {
+        "fascia": label,
+        "n_in_movimento": int(round(n_m)),
+        "n_parcheggiati_totale": int(round(n_p)),
+        "n_parcheggiati_on_street_0m": int(round(n_on0)),
+        "n_parcheggiati_off_street_0m": int(round(n_p - n_on0)),
+        "n_parcheggiati_on_street_2m": int(round(n_on2)),
+        "n_parcheggiati_off_street_2m": int(round(n_p - n_on2)),
+        "superficie_occupata_km2_0m": round(area0, 2),
+        "superficie_occupata_km2_2m": round(area2, 2),
+        "pct_superficie_carrabile_0m": round(area0 / surf * 100, 1),
+        "pct_superficie_carrabile_2m": round(area2 / surf * 100, 1),
+    }
+
+rows_summary = [
+    city_summary(df_city,     "24h (media giornaliera)"),
+    city_summary(day_city,    "diurno 06-22"),
+    city_summary(night_city,  "notturno 23-05"),
+    city_summary(df_city[df_city["hour"] == peak_hour], f"picco ({peak_hour}:30)"),
+]
+df_city_summary = pd.DataFrame(rows_summary)
+df_city_summary.to_csv(os.path.join(RESULTS, "10_stima_citta_sintesi.csv"), index=False)
+
+# Stampa riepilogo
+print(f"\n  {'Fascia':<26} {'In moto':>10} {'Parcheg.':>10} "
+      f"{'On-str 0m':>12} {'On-str 2m':>12} {'Superf. 2m':>12}")
+print("  " + "-" * 86)
+for r in rows_summary:
+    print(f"  {r['fascia']:<26} {r['n_in_movimento']:>10,} {r['n_parcheggiati_totale']:>10,} "
+          f"{r['n_parcheggiati_on_street_0m']:>12,} {r['n_parcheggiati_on_street_2m']:>12,} "
+          f"{r['pct_superficie_carrabile_2m']:>10.1f}%")
+
+# --- Fig 13: Profilo orario a scala di città ---
+fig, axes = plt.subplots(2, 1, figsize=(13, 9), sharex=True)
+ax1, ax2 = axes
+
+ax1.stackplot(df_city["hour"],
+              df_city["city_n_moving"],
+              df_city["city_n_parked_onstreet_2m"],
+              df_city["city_n_parked_offstreet_2m"],
+              labels=["In movimento", "Parcheggiati on-street (≤2m)", "Parcheggiati off-street"],
+              colors=["#2196F3", "#FF9800", "#F44336"], alpha=0.85)
+ax1.set_ylabel("N. veicoli (stima città)")
+ax1.set_title(f"Stima veicoli in movimento e in sosta a Roma per ora del giorno\n"
+              f"(calibrato su {REF_PEAK_VEHICLES:,} veicoli al picco — buffer 2m)")
+ax1.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{int(x):,}"))
+ax1.legend(loc="upper left", fontsize=9)
+ax1.grid(True, alpha=0.25, axis="y")
+
+ax2.plot(df_city["hour"], df_city["avg_pct_parked"],
+         marker="o", linewidth=2, color="#F44336", label="% Parcheggiati")
+ax2.plot(df_city["hour"], df_city["avg_pct_moving"],
+         marker="o", linewidth=2, color="#2196F3", label="% In movimento")
+ax2.set_xlabel("Ora del giorno")
+ax2.set_ylabel("%")
+ax2.set_title("Proporzione % veicoli parcheggiati vs in movimento")
+ax2.set_xticks(range(0, 24))
+ax2.yaxis.set_major_formatter(mticker.PercentFormatter())
+ax2.set_ylim(0, 105)
+ax2.legend()
+ax2.grid(True, alpha=0.3)
+fig.tight_layout()
+fig.savefig(os.path.join(RESULTS, "fig13_stima_citta_profilo_orario.png"))
+plt.close(fig)
+print("  fig13_stima_citta_profilo_orario.png")
+
+# --- Fig 14: Barre confronto fasce orarie (stima città) ---
+fasce   = ["24h\nmedia", f"Diurno\n06–22", "Notturno\n23–05", f"Picco\n{peak_hour}:30"]
+n_on2   = [r["n_parcheggiati_on_street_2m"]  for r in rows_summary]
+n_off2  = [r["n_parcheggiati_off_street_2m"] for r in rows_summary]
+n_mov   = [r["n_in_movimento"]               for r in rows_summary]
+x       = np.arange(len(fasce))
+
+fig, ax = plt.subplots(figsize=(10, 6))
+b1 = ax.bar(x, n_on2,  color="#FF9800", label="Parcheggiati on-street (≤2m)")
+b2 = ax.bar(x, n_off2, bottom=n_on2,  color="#F44336", label="Parcheggiati off-street")
+b3 = ax.bar(x, n_mov,  bottom=[a+b for a,b in zip(n_on2, n_off2)],
+            color="#2196F3", label="In movimento")
+for bar, val in zip(b1, n_on2):
+    ax.text(bar.get_x()+bar.get_width()/2, bar.get_height()/2,
+            f"{val:,.0f}", ha="center", va="center", fontsize=8, color="white", fontweight="bold")
+for bar, base, val in zip(b2, n_on2, n_off2):
+    ax.text(bar.get_x()+bar.get_width()/2, base + val/2,
+            f"{val:,.0f}", ha="center", va="center", fontsize=8, color="white", fontweight="bold")
+for bar, base_on, base_off, val in zip(b3, n_on2, n_off2, n_mov):
+    ax.text(bar.get_x()+bar.get_width()/2, base_on+base_off + val/2,
+            f"{val:,.0f}", ha="center", va="center", fontsize=8, color="white", fontweight="bold")
+ax.set_xticks(x)
+ax.set_xticklabels(fasce)
+ax.set_ylabel("N. veicoli stimati")
+ax.set_title(f"Distribuzione veicoli a Roma per fascia oraria\n"
+             f"(stima calibrata su {REF_PEAK_VEHICLES:,} veicoli al picco, buffer 2m)")
+ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{int(x):,}"))
+ax.legend(fontsize=9)
+ax.grid(True, alpha=0.3, axis="y")
+fig.tight_layout()
+fig.savefig(os.path.join(RESULTS, "fig14_stima_citta_fasce_orarie.png"))
+plt.close(fig)
+print("  fig14_stima_citta_fasce_orarie.png")
+
 print("\n" + "=" * 60)
 print(f"Output salvati in: {RESULTS}/")
