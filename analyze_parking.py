@@ -92,8 +92,10 @@ mun = gpd.read_file(os.path.join(BASE, "municipi_2013.shp")).to_crs(TARGET_CRS)
 roma_boundary = mun.geometry.unary_union
 print(f"  Municipi caricati: {len(mun)}")
 
-in_roma = gdf_dest.geometry.within(roma_boundary)
-gdf_roma = gdf_dest[in_roma].copy().reset_index(drop=True)
+mun_union = mun[["geometry"]].copy().reset_index(drop=True)
+joined_roma = gpd.sjoin(gdf_dest.reset_index(), mun_union, how="inner", predicate="within")
+in_roma_idx = joined_roma["index"].unique()
+gdf_roma = gdf_dest.loc[in_roma_idx].copy().reset_index(drop=True)
 n_total = len(gdf_dest)
 n_roma = len(gdf_roma)
 print(f"  Destinazioni DENTRO Roma:  {n_roma:,} / {n_total:,}  ({n_roma/n_total*100:.1f}%)")
@@ -121,16 +123,32 @@ if ac_vei_available:
     area_carrabile_mq = ac_vei_roma.geometry.area.sum()
     print(f"  Superficie carrabile (dentro Roma): {area_carrabile_mq / 1e6:.3f} km²")
 
-    print("  Calcolo unary union AC_VEI (può richiedere alcuni minuti) ...")
-    ac_union = ac_vei_roma.geometry.unary_union
-    print("  Union completata.")
+    # Prepara GeoDataFrame punti (solo geometria + indice originale)
+    pts = gdf_roma[["geometry"]].copy()
+    pts.index.name = "_pt_idx"
+    pts = pts.reset_index()   # colonna _pt_idx = indice originale
 
-    print("  Classificazione on-street / off-street per ogni buffer ...")
+    print("  Classificazione on-street / off-street per ogni buffer (sjoin con R-tree) ...")
     buffer_results = []
     for buf in BUFFER_DISTANCES:
         label = f"{buf}m"
-        target_geom = ac_union if buf == 0 else ac_union.buffer(buf)
-        mask = gdf_roma.geometry.within(target_geom)
+        print(f"    Buffer {label:>4} ...", end=" ", flush=True)
+
+        # Costruisce layer AC_VEI con eventuale buffer (senza unary union)
+        if buf == 0:
+            ac_buf = ac_vei_roma[["geometry"]].copy().reset_index(drop=True)
+        else:
+            ac_buf = gpd.GeoDataFrame(
+                geometry=ac_vei_roma.geometry.buffer(buf), crs=TARGET_CRS
+            ).reset_index(drop=True)
+
+        # Spatial join indicizzato (R-tree): inner → solo i punti che cadono dentro
+        joined = gpd.sjoin(pts, ac_buf, how="inner", predicate="within")
+        on_street_idx = joined["_pt_idx"].unique()   # indici originali on-street
+
+        mask = pd.Series(False, index=gdf_roma.index)
+        mask.loc[on_street_idx] = True
+
         n_on = mask.sum()
         n_off = n_roma - n_on
         pct_on = n_on / n_roma * 100
@@ -139,7 +157,7 @@ if ac_vei_available:
             "n_on_street": int(n_on), "n_off_street": int(n_off),
             "pct_on_street": round(pct_on, 2), "pct_off_street": round(100 - pct_on, 2),
         })
-        print(f"    Buffer {label:>4}: on-street {pct_on:.1f}%  |  off-street {100-pct_on:.1f}%")
+        print(f"on-street {pct_on:.1f}%  |  off-street {100-pct_on:.1f}%")
         gdf_roma[f"on_street_{label}"] = mask.astype(int)
 
     df_buffer = pd.DataFrame(buffer_results)
