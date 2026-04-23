@@ -70,6 +70,7 @@ print(f"  Totale spostamenti caricati: {len(trips):,}")
 trips = trips.dropna(subset=["d", "arr_time"])
 print(f"  Dopo rimozione dest. nulle:  {len(trips):,}")
 
+trips["dep_time"] = pd.to_datetime(trips["dep_time"])
 trips["arr_time"] = pd.to_datetime(trips["arr_time"])
 trips["hour"] = trips["arr_time"].dt.hour
 trips["weekday"] = trips["arr_time"].dt.day_name()
@@ -405,7 +406,201 @@ if df_buffer is not None:
     print("  fig8_heatmap_onstreet_ora_giorno.png")
 
 # ---------------------------------------------------------------------------
-# 7. Riepilogo finale
+# 7. Stima veicoli parcheggiati vs in uso (snapshot orari)
+# ---------------------------------------------------------------------------
+print("\nSTEP 7: Stima veicoli parcheggiati vs in uso")
+
+# Usa tutti gli spostamenti (non solo dest. in Roma):
+# vogliamo capire quanta parte della flotta osservata è ferma in ogni ora.
+t_all = trips.copy()
+t_all["date"] = t_all["dep_time"].dt.date
+
+# Teniamo solo viaggi che iniziano e finiscono nello stesso giorno
+# (i cross-mezzanotte sono meno dell'1% e complicano il calcolo)
+same_day = t_all["dep_time"].dt.date == t_all["arr_time"].dt.date
+t_all = t_all[same_day].copy()
+
+t_all["dep_min"] = t_all["dep_time"].dt.hour * 60 + t_all["dep_time"].dt.minute
+t_all["arr_min"] = t_all["arr_time"].dt.hour * 60 + t_all["arr_time"].dt.minute
+
+# Numero di veicoli attivi per giorno (almeno uno spostamento)
+daily_active = t_all.groupby("date")["user_id"].nunique()
+
+# Mappa data → giorno settimana
+date_weekday = {d: pd.Timestamp(d).dayofweek for d in daily_active.index}
+
+print(f"  Giorni coperti: {len(daily_active)}  |  "
+      f"Veicoli unici: {t_all['user_id'].nunique():,}")
+
+# Snapshot orario: per ogni ora h contiamo i veicoli in movimento alle h:30
+print("  Calcolo snapshot orari ...", end=" ", flush=True)
+snap_records = []
+for hour in range(24):
+    snap_min = hour * 60 + 30
+    active_now = t_all[(t_all["dep_min"] <= snap_min) & (t_all["arr_min"] >= snap_min)]
+    moving_by_date = active_now.groupby("date")["user_id"].nunique()
+
+    for date, n_active_day in daily_active.items():
+        n_moving = int(moving_by_date.get(date, 0))
+        n_parked = n_active_day - n_moving
+        snap_records.append({
+            "date": date,
+            "weekday_num": date_weekday[date],
+            "hour": hour,
+            "n_active": int(n_active_day),
+            "n_moving": n_moving,
+            "n_parked": n_parked,
+            "pct_parked": round(n_parked / n_active_day * 100, 2),
+            "pct_moving": round(n_moving / n_active_day * 100, 2),
+        })
+print("fatto.")
+
+df_snap = pd.DataFrame(snap_records)
+
+# Media per ora del giorno (su tutti i giorni)
+df_hourly_usage = (
+    df_snap.groupby("hour")
+    .agg(
+        avg_n_active=("n_active", "mean"),
+        avg_n_moving=("n_moving", "mean"),
+        avg_n_parked=("n_parked", "mean"),
+        avg_pct_moving=("pct_moving", "mean"),
+        avg_pct_parked=("pct_parked", "mean"),
+    )
+    .round(2)
+    .reset_index()
+)
+
+# Media per giorno settimana × ora (per heatmap)
+df_heatmap_usage = (
+    df_snap.groupby(["weekday_num", "hour"])["pct_parked"]
+    .mean().round(2)
+    .unstack("hour")
+    .reindex(range(7))
+)
+df_heatmap_usage.index = [day_names.get(i, str(i)) for i in df_heatmap_usage.index]
+
+# Stima notturna (ore 23-05)
+night_hours = [23, 0, 1, 2, 3, 4, 5]
+night_df = df_snap[df_snap["hour"].isin(night_hours)]
+avg_pct_parked_night = night_df["pct_parked"].mean()
+avg_pct_parked_day = df_snap[~df_snap["hour"].isin(night_hours)]["pct_parked"].mean()
+avg_pct_parked_all = df_snap["pct_parked"].mean()
+
+peak_moving_hour = int(df_hourly_usage.loc[df_hourly_usage["avg_pct_moving"].idxmax(), "hour"])
+peak_moving_pct = df_hourly_usage["avg_pct_moving"].max()
+
+print(f"  Media giornaliera % veicoli parcheggiati: {avg_pct_parked_all:.1f}%")
+print(f"  Media diurna (06-22)  % veicoli parcheggiati: {avg_pct_parked_day:.1f}%")
+print(f"  Media notturna (23-05) % veicoli parcheggiati: {avg_pct_parked_night:.1f}%")
+print(f"  Ora con più veicoli in movimento: {peak_moving_hour}:30  ({peak_moving_pct:.1f}% in uso)")
+
+# Salva CSV
+df_hourly_usage.to_csv(os.path.join(RESULTS, "06_uso_veicoli_orario.csv"), index=False)
+df_snap.groupby("weekday_num").agg(
+    avg_pct_parked=("pct_parked", "mean"),
+    avg_pct_moving=("pct_moving", "mean"),
+).round(2).reset_index().assign(
+    giorno=lambda d: d["weekday_num"].map(day_names)
+).to_csv(os.path.join(RESULTS, "07_uso_veicoli_per_giorno.csv"), index=False)
+
+summary_uso = pd.DataFrame([{
+    "media_pct_parcheggiati_giornaliero": round(avg_pct_parked_all, 2),
+    "media_pct_parcheggiati_diurno_06_22": round(avg_pct_parked_day, 2),
+    "media_pct_parcheggiati_notturno_23_05": round(avg_pct_parked_night, 2),
+    "ora_picco_uso": peak_moving_hour,
+    "pct_in_uso_al_picco": round(float(peak_moving_pct), 2),
+}])
+summary_uso.to_csv(os.path.join(RESULTS, "08_sintesi_uso_flotta.csv"), index=False)
+
+# --- Fig 9: % parcheggiati vs in uso per ora ---
+fig, ax = plt.subplots(figsize=(12, 5))
+ax.fill_between(df_hourly_usage["hour"], df_hourly_usage["avg_pct_parked"],
+                alpha=0.35, color="#F44336", label="_nolegend_")
+ax.fill_between(df_hourly_usage["hour"], df_hourly_usage["avg_pct_moving"],
+                alpha=0.35, color="#2196F3", label="_nolegend_")
+ax.plot(df_hourly_usage["hour"], df_hourly_usage["avg_pct_parked"],
+        marker="o", linewidth=2, color="#F44336", label="% Parcheggiati")
+ax.plot(df_hourly_usage["hour"], df_hourly_usage["avg_pct_moving"],
+        marker="o", linewidth=2, color="#2196F3", label="% In uso (in viaggio)")
+# Annotazione picco
+ax.annotate(f"Picco\n{peak_moving_pct:.1f}%",
+            xy=(peak_moving_hour, float(peak_moving_pct)),
+            xytext=(peak_moving_hour + 1.2, float(peak_moving_pct) - 4),
+            arrowprops=dict(arrowstyle="->", color="#2196F3"), color="#2196F3", fontsize=9)
+ax.axhspan(0, 100, xmin=23/24, alpha=0.08, color="navy", label="Fascia notturna")
+ax.axhspan(0, 100, xmin=0, xmax=5/24, alpha=0.08, color="navy")
+ax.set_xlabel("Ora del giorno")
+ax.set_ylabel("%")
+ax.set_title("% veicoli parcheggiati vs in uso per ora del giorno\n"
+             "(flotta osservata — media marzo 2023, snapshot alle :30)")
+ax.set_xticks(range(0, 24))
+ax.yaxis.set_major_formatter(mticker.PercentFormatter())
+ax.set_ylim(0, 105)
+ax.legend()
+ax.grid(True, alpha=0.3)
+fig.tight_layout()
+fig.savefig(os.path.join(RESULTS, "fig9_pct_parcheggiati_vs_inuso_orario.png"))
+plt.close(fig)
+print("  fig9_pct_parcheggiati_vs_inuso_orario.png")
+
+# --- Fig 10: Numero assoluto medio veicoli parcheggiati vs in uso ---
+fig, ax = plt.subplots(figsize=(12, 5))
+ax.stackplot(df_hourly_usage["hour"],
+             df_hourly_usage["avg_n_moving"],
+             df_hourly_usage["avg_n_parked"],
+             labels=["In uso (in viaggio)", "Parcheggiati"],
+             colors=["#2196F3", "#F44336"], alpha=0.8)
+ax.set_xlabel("Ora del giorno")
+ax.set_ylabel("N. veicoli (media giornaliera)")
+ax.set_title("Numero medio di veicoli parcheggiati vs in uso per ora\n"
+             "(flotta osservata — marzo 2023)")
+ax.set_xticks(range(0, 24))
+ax.legend(loc="upper left")
+ax.grid(True, alpha=0.3)
+fig.tight_layout()
+fig.savefig(os.path.join(RESULTS, "fig10_n_veicoli_parcheggiati_vs_inuso.png"))
+plt.close(fig)
+print("  fig10_n_veicoli_parcheggiati_vs_inuso.png")
+
+# --- Fig 11: Heatmap % parcheggiati ora x giorno settimana ---
+fig, ax = plt.subplots(figsize=(14, 5))
+im = ax.imshow(df_heatmap_usage.values, aspect="auto", cmap="RdYlGn_r",
+               vmin=50, vmax=100)
+ax.set_xticks(range(24))
+ax.set_xticklabels(range(24))
+ax.set_yticks(range(len(df_heatmap_usage.index)))
+ax.set_yticklabels(df_heatmap_usage.index)
+ax.set_xlabel("Ora del giorno")
+ax.set_title("% veicoli parcheggiati per ora e giorno della settimana\n"
+             "(verde = più in uso, rosso = più parcheggiati)")
+plt.colorbar(im, ax=ax, label="% parcheggiati")
+fig.tight_layout()
+fig.savefig(os.path.join(RESULTS, "fig11_heatmap_pct_parcheggiati.png"))
+plt.close(fig)
+print("  fig11_heatmap_pct_parcheggiati.png")
+
+# --- Fig 12: Confronto giorno / notte / media ---
+labels_comp = ["Media\ngiornaliera", "Diurno\n(06–22)", "Notturno\n(23–05)"]
+values_comp = [avg_pct_parked_all, avg_pct_parked_day, avg_pct_parked_night]
+colors_comp = ["#9C27B0", "#FF9800", "#3F51B5"]
+fig, ax = plt.subplots(figsize=(7, 5))
+bars = ax.bar(labels_comp, values_comp, color=colors_comp, width=0.5)
+for bar, val in zip(bars, values_comp):
+    ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.4,
+            f"{val:.1f}%", ha="center", va="bottom", fontsize=12, fontweight="bold")
+ax.set_ylabel("% veicoli parcheggiati")
+ax.set_title("% media veicoli parcheggiati:\nconfronto giornaliero vs fasce orarie")
+ax.set_ylim(0, 105)
+ax.yaxis.set_major_formatter(mticker.PercentFormatter())
+ax.grid(True, alpha=0.3, axis="y")
+fig.tight_layout()
+fig.savefig(os.path.join(RESULTS, "fig12_confronto_giorno_notte.png"))
+plt.close(fig)
+print("  fig12_confronto_giorno_notte.png")
+
+# ---------------------------------------------------------------------------
+# 8. Riepilogo finale
 # ---------------------------------------------------------------------------
 print("\n" + "=" * 60)
 print("RIEPILOGO ANALISI PARCHEGGI ROMA")
@@ -423,6 +618,9 @@ if df_buffer is not None:
 else:
     print("\n[Analisi on/off-street non disponibile: AC_VEI.shp mancante]")
     print("Per abilitarla: git lfs pull --include='AC_VEI.shp' && python3 analyze_parking.py")
+
+print(f"\n  % veicoli parcheggiati — media: {avg_pct_parked_all:.1f}%  "
+      f"| diurno: {avg_pct_parked_day:.1f}%  | notturno: {avg_pct_parked_night:.1f}%")
 
 print("\n" + "=" * 60)
 print(f"Output salvati in: {RESULTS}/")
