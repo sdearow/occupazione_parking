@@ -1,0 +1,5 @@
+fascia,n_in_movimento,pct_in_movimento,n_parcheggiati_totale,pct_parcheggiati,n_on_street_0m,n_off_street_0m,n_on_street_2m,n_off_street_2m,superficie_on_street_km2_0m,superficie_on_street_km2_2m,pct_superficie_carrabile_0m,pct_superficie_carrabile_2m
+24h (media giornaliera),61388,3.8,1538612,96.2,1000098,538514,1175500,363112,12.5,14.69,9.3,10.9
+diurno 06-22,81708,5.1,1518292,94.9,986890,531402,1159975,358317,12.34,14.5,9.1,10.7
+notturno 23-05,12040,0.8,1587960,99.2,1032174,555786,1213202,374759,12.9,15.17,9.5,11.2
+picco (8:30),112889,7.1,1487111,92.9,966622,520489,1136153,350958,12.08,14.2,8.9,10.5
