@@ -79,8 +79,8 @@ trips["weekday_num"] = trips["arr_time"].dt.dayofweek
 # 2. Costruisce GeoDataFrame destinazioni (WGS84 → EPSG:25833)
 # ---------------------------------------------------------------------------
 print("\nSTEP 2: Costruzione GeoDataFrame destinazioni")
-trips["geom_d"] = trips["d"].apply(wkt.loads)
-gdf_dest = gpd.GeoDataFrame(trips, geometry="geom_d", crs="EPSG:4326")
+trips["geometry"] = trips["d"].apply(wkt.loads)
+gdf_dest = gpd.GeoDataFrame(trips, geometry="geometry", crs="EPSG:4326")
 gdf_dest = gdf_dest.to_crs(TARGET_CRS)
 print(f"  GeoDataFrame creato: {len(gdf_dest):,} punti (EPSG:25833)")
 
