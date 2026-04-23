@@ -628,23 +628,30 @@ print(f"\n  % veicoli parcheggiati — media: {avg_pct_parked_all:.1f}%  "
 print("\nSTEP 9: Stime a scala di città")
 
 # --- Parametro di calibrazione ---
-# Veicoli in movimento nell'ora di punta stimati da fonti esterne (es. conteggi traffico Roma)
-# Modifica questo valore se disponi di un riferimento aggiornato.
-REF_PEAK_VEHICLES = 300_000   # veicoli in movimento al picco (08:30)
+# Veicoli unici che effettuano almeno uno spostamento nella fascia di punta mattutina.
+# Modifica questi valori se disponi di un riferimento aggiornato.
+REF_PEAK_VEHICLES  = 300_000   # veicoli unici con almeno un viaggio 07:00–09:00
+PEAK_WINDOW_START  = 7         # ora inizio fascia (inclusa)
+PEAK_WINDOW_END    = 9         # ora fine fascia (esclusa)
 
-# Veicoli in movimento al picco nel campione FCD
-peak_hour = int(df_hourly_usage.loc[df_hourly_usage["avg_pct_moving"].idxmax(), "hour"])
-n_moving_peak_sample = float(df_hourly_usage.loc[
-    df_hourly_usage["hour"] == peak_hour, "avg_n_moving"
-].iloc[0])
+# Stessa metrica nel campione FCD: media giornaliera di veicoli unici
+# con almeno una partenza nella finestra 07:00–09:00
+peak_trips_sample = t_all[
+    (t_all["dep_time"].dt.hour >= PEAK_WINDOW_START) &
+    (t_all["dep_time"].dt.hour <  PEAK_WINDOW_END)
+]
+avg_unique_peak_sample = peak_trips_sample.groupby("date")["user_id"].nunique().mean()
 
-SCALE = REF_PEAK_VEHICLES / n_moving_peak_sample
+SCALE = REF_PEAK_VEHICLES / avg_unique_peak_sample
 implied_daily_fleet = df_hourly_usage["avg_n_active"].iloc[0] * SCALE
 
-print(f"  Riferimento esterno picco ({peak_hour}:30): {REF_PEAK_VEHICLES:,} veicoli")
-print(f"  Campione FCD al picco:                    {n_moving_peak_sample:,.0f} veicoli")
-print(f"  Fattore di espansione:                    {SCALE:.1f}×")
-print(f"  Flotta giornaliera attiva stimata:        {implied_daily_fleet:,.0f} veicoli")
+peak_hour = int(df_hourly_usage.loc[df_hourly_usage["avg_pct_moving"].idxmax(), "hour"])
+
+print(f"  Riferimento: veicoli unici con partenza {PEAK_WINDOW_START}:00–{PEAK_WINDOW_END}:00: "
+      f"{REF_PEAK_VEHICLES:,}")
+print(f"  Campione FCD (media/giorno stessa finestra):  {avg_unique_peak_sample:,.0f} veicoli")
+print(f"  Fattore di espansione:                        {SCALE:.1f}×")
+print(f"  Flotta giornaliera attiva stimata:            {implied_daily_fleet:,.0f} veicoli")
 
 # --- Espansione del profilo orario ---
 df_city = df_hourly_usage.copy()
@@ -732,7 +739,7 @@ ax1.stackplot(df_city["hour"],
               colors=["#2196F3", "#FF9800", "#F44336"], alpha=0.85)
 ax1.set_ylabel("N. veicoli (stima città)")
 ax1.set_title(f"Stima veicoli in movimento e in sosta a Roma per ora del giorno\n"
-              f"(calibrato su {REF_PEAK_VEHICLES:,} veicoli al picco — buffer 2m)")
+              f"(calibrato su {REF_PEAK_VEHICLES:,} veicoli unici in punta 07–09 — buffer 2m)")
 ax1.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{int(x):,}"))
 ax1.legend(loc="upper left", fontsize=9)
 ax1.grid(True, alpha=0.25, axis="y")
@@ -779,7 +786,7 @@ ax.set_xticks(x)
 ax.set_xticklabels(fasce)
 ax.set_ylabel("N. veicoli stimati")
 ax.set_title(f"Distribuzione veicoli a Roma per fascia oraria\n"
-             f"(stima calibrata su {REF_PEAK_VEHICLES:,} veicoli al picco, buffer 2m)")
+             f"(calibrato su {REF_PEAK_VEHICLES:,} veicoli unici in punta 07–09, buffer 2m)")
 ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{int(x):,}"))
 ax.legend(fontsize=9)
 ax.grid(True, alpha=0.3, axis="y")
