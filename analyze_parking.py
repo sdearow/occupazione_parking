@@ -351,6 +351,10 @@ if df_buffer is not None:
     ax2.set_title("% parcheggi on-street vs off-street per ora (buffer=0)")
     ax2.set_xticks(range(0, 24))
     ax2.yaxis.set_major_formatter(mticker.PercentFormatter())
+    # Zoom on actual data range so variation is visible
+    all_pct = pd.concat([df_hourly["pct_on_street"], df_hourly["pct_off_street"]]).dropna()
+    if not all_pct.empty:
+        ax2.set_ylim(max(0, all_pct.min() - 5), min(100, all_pct.max() + 5))
     ax2.legend()
     ax2.grid(True, alpha=0.3)
     fig.tight_layout()
@@ -391,8 +395,11 @@ if df_buffer is not None:
     )
     pivot_on.index = [day_names.get(i, str(i)) for i in pivot_on.index]
     fig, ax = plt.subplots(figsize=(14, 5))
+    flat = pivot_on.values[pivot_on.values > 0]
+    v_min = max(0,   float(flat.min()) - 5) if flat.size else 0
+    v_max = min(100, float(flat.max()) + 5) if flat.size else 100
     im = ax.imshow(pivot_on.values, aspect="auto", cmap="RdYlGn",
-                   vmin=0, vmax=100)
+                   vmin=v_min, vmax=v_max)
     ax.set_xticks(range(24))
     ax.set_xticklabels(range(24))
     ax.set_yticks(range(len(pivot_on.index)))
@@ -526,8 +533,10 @@ ax.plot(df_hourly_usage["hour"], df_hourly_usage["avg_pct_moving"],
 # Annotazione picco
 ax.annotate(f"Picco\n{peak_moving_pct:.1f}%",
             xy=(peak_moving_hour, float(peak_moving_pct)),
-            xytext=(peak_moving_hour + 1.2, float(peak_moving_pct) - 4),
-            arrowprops=dict(arrowstyle="->", color="#2196F3"), color="#2196F3", fontsize=9)
+            xytext=(peak_moving_hour - 3.5, float(peak_moving_pct) + 18),
+            arrowprops=dict(arrowstyle="->", color="#2196F3", lw=1.5),
+            color="#2196F3", fontsize=9,
+            bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="#2196F3", alpha=0.85))
 ax.axhspan(0, 100, xmin=23/24, alpha=0.08, color="navy", label="Fascia notturna")
 ax.axhspan(0, 100, xmin=0, xmax=5/24, alpha=0.08, color="navy")
 ax.set_xlabel("Ora del giorno")
@@ -754,7 +763,7 @@ ax1.set_ylabel(f"N. veicoli (su {FLEET_TOTAL_ROME:,} totali)")
 ax1.set_title(f"Stima veicoli in movimento e in sosta a Roma per ora del giorno\n"
               f"(parco totale {FLEET_TOTAL_ROME:,} — buffer 2m — calibrato su {REF_PEAK_VEHICLES:,} veh. in punta 07–09)")
 ax1.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{int(x):,}"))
-ax1.legend(loc="upper left", fontsize=9)
+ax1.legend(loc="lower left", fontsize=9)
 ax1.grid(True, alpha=0.25, axis="y")
 
 ax2.plot(df_city["hour"], df_city["pct_parked_total"],
@@ -803,6 +812,8 @@ ax.set_title(f"Distribuzione veicoli a Roma per fascia oraria\n"
 ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{int(x):,}"))
 ax.legend(fontsize=9)
 ax.grid(True, alpha=0.3, axis="y")
+# Extra headroom so labels at the top of each stacked bar are fully visible
+ax.set_ylim(0, max(a + b + c for a, b, c in zip(n_on2, n_off2, n_mov)) * 1.10)
 fig.tight_layout()
 fig.savefig(os.path.join(RESULTS, "fig14_stima_citta_fasce_orarie.png"))
 plt.close(fig)
