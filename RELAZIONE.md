@@ -2,7 +2,7 @@
 ## Analisi della sosta veicolare nel Comune di Roma tramite dati Floating Car Data (FCD)
 
 **Dati di riferimento:** spostamenti veicolari — marzo 2023
-**Strumento:** script Python `analyze_parking.py` (geopandas, pandas, matplotlib)
+**Strumenti:** script Python `analyze_parking.py` (analisi on/off-street e stime città) e `map_parking.py` (mappe spaziali H3) — geopandas, pandas, matplotlib, h3
 **Sistema di riferimento di lavoro:** EPSG:25833 (ETRS89 / UTM Zona 33N — unità metriche)
 
 ---
@@ -107,15 +107,23 @@ Poiché il segnale GPS ha una precisione limitata e molti veicoli si fermano ai 
 
 ![Curva on/off-street al variare del buffer](results/fig4_curva_buffer.png)
 
+**Analisi del grafico (fig. 4).** La curva on-street cresce in modo ripido e concavo: il guadagno marginale è massimo nei primi metri (+6,7 punti da 0 a 1 m, +4,7 da 1 a 2 m) e si appiattisce dopo i 5 m. Questa forma è la firma tipica dell'**errore di posizionamento GPS**: se le soste off-street fossero realmente in aree private, la curva resterebbe piatta all'aumentare del buffer; il fatto che il 25% dei punti "fuori strada" rientri sulla carreggiata con soli 2 m indica che si tratta in larga parte di soste su strada mal georeferenziate. Il punto di flesso attorno ai 2 m giustifica la scelta di quella soglia come stima conservativa.
+
 ![Distribuzione on/off-street per soglia di buffer](results/fig5_barre_buffer.png)
 
-L'andamento on-street nel tempo conferma che la quota di sosta su strada è strutturalmente alta in tutte le fasce orarie e in tutti i giorni della settimana.
+**Analisi del grafico (fig. 5).** La rappresentazione a barre impilate evidenzia che la componente off-street (rossa) si dimezza tra 0 m (35,0%) e 2 m (23,6%) e si riduce a meno di un decimo a 10 m (9,9%). Anche assumendo la soglia più prudente (0 m), la sosta su strada resta comunque maggioritaria (65%): il risultato qualitativo — *a Roma si parcheggia prevalentemente su strada* — è quindi robusto rispetto alla scelta del buffer.
 
 ![Andamento orario on/off-street](results/fig6_andamento_orario_onoff.png)
 
+**Analisi del grafico (fig. 6).** Il pannello superiore mostra il volume di arrivi (basso di notte, plateau diurno ~24.000/ora); quello inferiore la quota on-street ora per ora. La percentuale on-street **non è costante**: raggiunge il massimo nelle ore notturne e di prima mattina (**~72–73% tra le 3 e le 5**) e scende ai minimi nelle ore centrali e serali (**~62–64%**). La lettura è coerente: di notte restano in strada soprattutto le auto dei residenti che non dispongono di box, mentre di giorno aumenta il peso delle soste in destinazioni dotate di parcheggi privati (uffici, centri commerciali, strutture con aree di sosta). Questo conferma che applicare un'unica ratio media alle 24 ore (come fatto nello STEP 9) introduce un'approssimazione.
+
 ![Andamento settimanale on/off-street](results/fig7_andamento_settimanale_onoff.png)
 
+**Analisi del grafico (fig. 7).** La quota on-street è invece **stabile lungo la settimana**: la variazione tra giorni feriali e weekend è di pochi punti percentuali, a fronte di volumi di arrivo che dimezzano nel fine settimana. La sosta su strada è quindi una caratteristica strutturale del territorio, indipendente dal livello di domanda giornaliera.
+
 ![Heatmap % on-street per ora e giorno](results/fig8_heatmap_onstreet_ora_giorno.png)
+
+**Analisi del grafico (fig. 8).** La heatmap incrocia le due dimensioni: le bande più intense (alta % on-street) si dispongono orizzontalmente nelle fasce notturne, in modo uniforme su tutti i giorni della settimana. Non emergono "isole" anomale, a conferma che la dinamica giorno/notte domina su quella infrasettimanale.
 
 ### STEP 5–6 — Analisi temporale e grafici
 Gli arrivi a Roma vengono aggregati per **ora del giorno** e per **giorno della settimana**, producendo distribuzioni di volume e relative heatmap.
@@ -129,6 +137,8 @@ Gli arrivi a Roma vengono aggregati per **ora del giorno** e per **giorno della 
 ![Distribuzione settimanale degli arrivi](results/fig2_distribuzione_settimanale.png)
 
 ![Heatmap volume per ora e giorno della settimana](results/fig3_heatmap_volume_ora_giorno.png)
+
+**Analisi dei grafici (fig. 1–3).** Il profilo orario (fig. 1) è **bimodale ma asimmetrico**: la salita mattutina è rapida (tra le 6 e le 8 il volume quadruplica), mentre la coda serale è più lunga e il picco delle 18 è leggermente superiore a quello del mattino — segno di una città in cui i rientri serali e gli spostamenti per motivi non lavorativi pesano quanto la punta pendolare. La distribuzione settimanale (fig. 2) mostra il classico calo del weekend (domenica < 50% del picco feriale). La heatmap (fig. 3) sintetizza entrambe le dimensioni: il "blocco caldo" feriale 8:00–19:00 è nettamente delimitato, mentre sabato e domenica appaiono più "freddi" e con un baricentro spostato verso le ore centrali, coerente con una mobilità di tipo ricreativo anziché sistematico.
 
 ### STEP 7 — Veicoli parcheggiati vs in uso
 Per stimare quanti veicoli sono fermi in ogni momento, si adotta un metodo a **snapshot orari**: per ogni ora del giorno (istantanea alle :30) si conta quanti veicoli del campione hanno un viaggio in corso (*in uso*) e quanti no (*parcheggiati*). Il calcolo è fatto giorno per giorno e poi mediato.
@@ -152,6 +162,8 @@ Il campione contiene **23.571 veicoli unici** su 32 giorni. Si considerano solo 
 ![Heatmap % parcheggiati per ora e giorno](results/fig11_heatmap_pct_parcheggiati.png)
 
 ![Confronto giorno/notte](results/fig12_confronto_giorno_notte.png)
+
+**Analisi dei grafici (fig. 9–12).** La curva % parcheggiati (fig. 9) è quasi piatta e altissima: oscilla tra il **~90% nell'ora di punta** e il **~99% di notte**, senza mai avvicinarsi a valori bassi. Il messaggio è controintuitivo ma centrale: **un'auto è un oggetto prevalentemente fermo** — anche nel momento di massimo utilizzo, 9 veicoli su 10 sono in sosta. La fig. 10 (valori assoluti del campione) mostra le due aree speculari: la banda dei parcheggiati domina sempre, quella dei veicoli in uso resta una sottile fascia che si gonfia solo nelle punte. La heatmap (fig. 11) e il confronto giorno/notte (fig. 12) ribadiscono che la variabilità è quasi interamente *oraria* (giorno vs notte) e non *settimanale*. Questa stabilità è ciò che rende il fenomeno "sosta" così rilevante in termini di occupazione di suolo: lo spazio richiesto è permanente, non di picco.
 
 ### STEP 9 — Stime a scala di città
 
@@ -186,6 +198,8 @@ La superficie occupata è stimata assumendo **12,5 m² per veicolo** (ingombro s
 
 ![Stima città — confronto per fasce orarie](results/fig14_stima_citta_fasce_orarie.png)
 
+**Analisi dei grafici (fig. 13–14).** Riscalati al parco cittadino, i profili (fig. 13) mostrano una banda di veicoli parcheggiati pressoché costante attorno a **1,5 milioni** e una sottile fascia di veicoli in movimento che culmina nelle punte (~113.000 alle 8:30) ma resta sempre marginale. Il confronto per fasce (fig. 14) quantifica lo scarto giorno/notte: la sosta passa da ~1,49 M nel picco diurno a ~1,59 M di notte. È importante notare che, anche prendendo l'estremo superiore, l'occupazione di superficie carrabile resta nell'ordine del **10–11%**: un valore plausibile, che funge da riferimento "sano" rispetto alle stime di saturazione locali discusse più avanti (STEP 10/F), molto più sensibili agli errori di calibrazione.
+
 ### STEP 10 — Analisi spaziale della sosta: mappe e indicatori per municipio
 
 Per visualizzare la distribuzione geografica della sosta è stato realizzato uno script dedicato (`map_parking.py`) che produce due famiglie di mappe usando la libreria **H3** (griglia esagonale geospaziale di Uber, resolution 9, celle con lato ~174 m e area ~0,105 km²).
@@ -193,6 +207,10 @@ Per visualizzare la distribuzione geografica della sosta è stato realizzato uno
 Le mappe sono generate in **due scale**:
 - **Campione FCD:** conteggi diretti delle soste nel dataset, utili per confronti spaziali relativi.
 - **Stima città (×252):** valori espansi al parco reale tramite il fattore di calibrazione, per stime assolute (soste/km² a scala urbana).
+
+> **Nota sul fattore di scala.** Lo script delle mappe (`map_parking.py`) ricalcola internamente il fattore di espansione e ottiene **≈252×**, mentre lo STEP 9 di `analyze_parking.py` usa **≈217×**. La differenza nasce dal modo in cui si conta la metrica di punta nel campione (media dei veicoli unici 07–09 giorno per giorno vs aggregazione complessiva): non è un errore, ma una diversa stima della stessa quantità. Va tenuto presente perché si propaga linearmente a tutti i valori "stima città" delle mappe.
+
+> **Avvertenza di lettura delle densità "città".** I conteggi mappati sono **eventi di sosta cumulati su tutto il mese**, non occupazioni istantanee. Moltiplicarli per il fattore di punta produce numeri molto grandi (es. >250.000 soste/km² nei municipi centrali) che **non vanno letti come veicoli simultaneamente fermi per km²**, bensì come *indicatore relativo di pressione*: dove il valore è più alto, lì la sosta è più intensa. Per le grandezze assolute fisicamente interpretabili valgono le stime istantanee dello STEP 9 (~1,5 M veicoli, ~11% di superficie).
 
 #### A. Griglia H3 — densità campione (soste/km²)
 
@@ -202,6 +220,8 @@ Le mappe sono generate in **due scale**:
 
 ![Densità di sosta notturna 20–07 — campione FCD](results/maps/map03_densita_notturna_campione.png)
 
+**Analisi delle mappe (A).** La sosta non è distribuita uniformemente: si addensa lungo i grandi assi radiali e nel quadrante sud-est (Appio–Tuscolano, Cinecittà), dove la griglia H3 si accende di rosso. Il confronto diurno/notturno è informativo: la mappa diurna (map02) "illumina" anche le polarità di destinazione (zone di uffici e servizi del centro e del quadrante orientale), mentre quella notturna (map03) si concentra sulle aree residenziali dense, dove le auto rientrano e restano ferme. Le aree periferiche a bassa densità edilizia (Municipio XV a nord, fasce agricole a sud) restano fredde in tutte le fasce.
+
 #### B. Griglia H3 — densità stima città (soste/km², scala reale)
 
 ![Densità di sosta totale — stima città](results/maps/map04_densita_totale_citta.png)
@@ -209,6 +229,8 @@ Le mappe sono generate in **due scale**:
 ![Densità di sosta diurna 07–20 — stima città](results/maps/map05_densita_diurna_citta.png)
 
 ![Densità di sosta notturna 20–07 — stima città](results/maps/map06_densita_notturna_citta.png)
+
+**Analisi delle mappe (B).** Le mappe "stima città" sono identiche nella geografia a quelle campione (cambia solo la scala dei colori, moltiplicata per ≈252): servono a dare un'idea dell'ordine di grandezza assoluto, ma — come avvertito sopra — vanno interpretate come pressione relativa e non come densità istantanea reale.
 
 #### C. Indice residenziale (griglia H3)
 
@@ -228,9 +250,13 @@ Le stesse metriche vengono aggregate per **municipio**, producendo mappe corople
 
 ![Indice residenziale per municipio](results/maps/map10_municipio_indice_residenziale.png)
 
+**Analisi delle coroplete (D).** Aggregando per municipio emerge una netta gerarchia di **densità** (map08/09): i Municipi **IX** (~1.000 soste/km²) e **VIII** (~999) staccano nettamente tutti gli altri, seguiti a distanza dal **I** (Centro Storico, ~603) e dall'**XI** (~438). La densità riflette la combinazione di superficie del municipio e intensità d'uso: i municipi più estesi e periferici (XV, XIV, III) restano in fondo alla classifica. La mappa dell'**indice residenziale** (map10) racconta una storia diversa e complementare: i valori più alti di % notturna si trovano nel **Municipio I (23,9%)** e negli altri municipi centrali (II, V, VII, X, ~20–22%), mentre proprio i municipi a più alta densità assoluta (VIII e IX) hanno la quota notturna **più bassa** (~14%). Lettura: il centro ha relativamente più sosta di tipo residenziale-stanziale, mentre il quadrante sud-est genera enormi volumi di sosta a forte rotazione diurna.
+
 #### E. Bar chart comparativo per municipio
 
 ![Indicatori di sosta per municipio](results/maps/map12_municipio_barchart.png)
+
+**Analisi del grafico (E).** Il bar chart ordina i municipi e affianca densità campione, densità "città" e indice residenziale. Rende immediato il **disaccoppiamento** tra i due fenomeni: le barre di densità (rosse) e quelle di residenzialità (blu) seguono ordinamenti quasi opposti. Un municipio può essere primo per intensità di sosta e ultimo per vocazione residenziale, a riprova che "tanta sosta" e "sosta da residenti" sono dimensioni distinte, da governare con politiche diverse (rotazione/tariffazione vs permessi residenti).
 
 #### F. Saturazione superficie carrabile (richiede AC_VEI.shp)
 
@@ -244,9 +270,17 @@ La quota di soste on-street varia per municipio in funzione della disponibilità
 
 ![% soste on-street per municipio](results/maps/map11_municipio_pct_onstreet.png)
 
+**Analisi del grafico (map11).** La % di soste on-street (buffer 2 m) si muove in un intervallo **stretto, tra ~73% e ~81%**: ovunque a Roma la sosta è in larga maggioranza su strada. Le differenze, pur modeste, hanno una logica territoriale: i valori più alti (verde, ~80%) si trovano in alcuni municipi periferici dotati di meno parcheggi pertinenziali strutturati, mentre i valori relativamente più bassi (rosso, ~73–75%) si concentrano in municipi dove pesano di più le destinazioni con aree di sosta private (poli direzionali e commerciali). La compressione del range conferma che la prevalenza della sosta su strada è un tratto **uniforme** della città, non localizzato.
+
 ![Saturazione superficie carrabile per municipio](results/maps/map13_municipio_saturazione.png)
 
 ![Saturazione superficie carrabile per cella H3](results/maps/map14_saturazione_h3.png)
+
+> ⚠️ **Nota critica sulla saturazione (map13 e map14) — da leggere come indicatore RELATIVO.** Le mappe riportano valori che superano ampiamente il 100% (fino a ~2.700% nel Municipio VIII e ~1.800% nel IX), che **non sono fisicamente interpretabili come percentuale di superficie occupata**: significherebbero più auto che asfalto. L'origine è metodologica: la saturazione qui è calcolata moltiplicando gli **eventi di sosta cumulati sull'intero mese** per il fattore di punta (≈252×) e dividendo per l'area carrabile della cella/municipio. Poiché ogni stallo ospita molte soste diverse nel corso del mese (rotazione), il numeratore somma occupazioni *non simultanee* come se lo fossero, gonfiando il risultato di uno-due ordini di grandezza. **Le mappe vanno quindi usate solo per confrontare la pressione relativa tra zone** (dove il rosso è più intenso, lì la competizione per lo stallo è maggiore), non per leggere un livello assoluto di saturazione.
+>
+> La map14 (per cella H3) è in questo senso la più utile: localizza con precisione i **cluster di massima pressione**, concentrati in modo compatto nel quadrante sud-est tra Appio, Tuscolano e Cinecittà (Municipi VII–VIII–IX), con un nucleo rosso continuo che nelle altre rappresentazioni resta mascherato dall'aggregazione per municipio.
+>
+> La stima **assoluta e fisicamente sensata** dell'occupazione di suolo resta quella dello STEP 9 (~11% della superficie carrabile comunale), ottenuta da occupazioni *istantanee* e non da eventi cumulati.
 
 **Indicatori principali per municipio (top 5 per densità):**
 
@@ -357,7 +391,10 @@ I 12,5 m² si riferiscono a un'auto media. Scooter e moto (~1–2 m²), SUV e fu
 ### 6.7 Età del dato AC_VEI
 Il layer della superficie carrabile ha un anno di riferimento attorno al 2014. Trasformazioni viabilistiche successive (nuove ZTL, isole pedonali, piste ciclabili) possono aver modificato la superficie effettivamente disponibile.
 
-### 6.8 Direzione complessiva delle distorsioni
+### 6.8 Saturazione mappata = eventi cumulati, non occupazione istantanea
+Le mappe di saturazione (map13/map14) e le densità "stima città" (map04–06, map09) sommano **eventi di sosta su tutto il mese** e li riscalano col fattore di punta. Poiché ogni stallo ospita molte soste diverse nel tempo (rotazione), il risultato sovrastima di uno-due ordini di grandezza l'occupazione reale e può superare il 100%. Questi layer sono validi solo come **indicatore relativo** di pressione tra zone, non come misura assoluta. La stima fisicamente corretta dell'occupazione (~11%) è quella istantanea dello STEP 9.
+
+### 6.9 Direzione complessiva delle distorsioni
 | Limite | Effetto sulla stima on-street / superficie |
 |---|---|
 | Campione biased verso utenti attivi | Sovrastima on-street |
@@ -376,6 +413,8 @@ La direzione prevalente è una **leggera sovrastima** della sosta su strada. I v
 - Della sosta osservata, il **65%** avviene sulla carreggiata (buffer 0 m), che sale al **76%** con appena 2 m di tolleranza GPS: la maggior parte della sosta è quindi **su strada**.
 - In un momento medio della giornata, oltre il **94%** dei veicoli osservati è fermo; di notte oltre il **98%**.
 - A scala di città, ciò corrisponde a circa **1,5 milioni di veicoli parcheggiati**, di cui circa **1,18 milioni su strada**, equivalenti a circa l'**11% della superficie carrabile** comunale.
+- **Geografia della sosta:** la pressione si concentra nel quadrante **sud-est** (Municipi VII–VIII–IX: Appio, Tuscolano, Cinecittà), che presenta le densità di sosta più elevate ma una quota notturna *bassa* (forte rotazione diurna). Il **Centro Storico** (Municipio I) ha invece la maggiore impronta residenziale (24% di soste notturne). La prevalenza on-street (73–81%) è uniforme su tutta la città.
+- Le mappe di **saturazione** (map13/map14) sono valide solo come **indicatore relativo** di pressione: i valori assoluti (>100%) non sono fisicamente interpretabili perché sommano eventi di sosta non simultanei. La stima di occupazione affidabile resta l'~11% dello STEP 9.
 - Tutte le stime assolute dipendono dai parametri di calibrazione (riferimento di punta, parco totale, ingombro per veicolo) e vanno trattate come ordini di grandezza con incertezza ±15–25%.
 
 ---
