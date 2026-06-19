@@ -220,6 +220,18 @@ Le stesse metriche vengono aggregate per **municipio**, producendo mappe corople
 
 ![Indicatori di sosta per municipio](results/maps/map12_municipio_barchart.png)
 
+#### F. Saturazione superficie carrabile (richiede AC_VEI.shp)
+
+La **saturazione** misura la quota di superficie stradale occupata dai veicoli in sosta on-street, calcolata come:
+
+> saturazione (%) = (n. soste on-street stimate × 12,5 m²) / area carrabile AC_VEI × 100
+
+Dove `n. soste on-street` è ottenuto espandendo il campione FCD col fattore di calibrazione (×252) e applicando la percentuale on-street locale (buffer 2 m).
+
+![Saturazione superficie carrabile per municipio](results/maps/map13_municipio_saturazione.png)
+
+![Saturazione superficie carrabile per cella H3](results/maps/map14_saturazione_h3.png)
+
 **Indicatori principali per municipio (top 5 per densità):**
 
 | Municipio | Soste campione | Densità (soste/km²) | % notturne |
