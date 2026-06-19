@@ -105,6 +105,18 @@ Poiché il segnale GPS ha una precisione limitata e molti veicoli si fermano ai 
 
 **Lettura:** senza tolleranza, il 65% delle soste avviene sulla carreggiata. Bastano però 2 metri di buffer per salire al 76,4%, segno che gran parte dei punti classificati off-street a 0m è in realtà a ridosso della strada e ricade lì per imprecisione del GPS, non per reale sosta in area privata. La soglia di **2 metri** è stata adottata come stima conservativa dell'errore di posizionamento urbano.
 
+![Curva on/off-street al variare del buffer](results/fig4_curva_buffer.png)
+
+![Distribuzione on/off-street per soglia di buffer](results/fig5_barre_buffer.png)
+
+L'andamento on-street nel tempo conferma che la quota di sosta su strada è strutturalmente alta in tutte le fasce orarie e in tutti i giorni della settimana.
+
+![Andamento orario on/off-street](results/fig6_andamento_orario_onoff.png)
+
+![Andamento settimanale on/off-street](results/fig7_andamento_settimanale_onoff.png)
+
+![Heatmap % on-street per ora e giorno](results/fig8_heatmap_onstreet_ora_giorno.png)
+
 ### STEP 5–6 — Analisi temporale e grafici
 Gli arrivi a Roma vengono aggregati per **ora del giorno** e per **giorno della settimana**, producendo distribuzioni di volume e relative heatmap.
 
@@ -228,6 +240,10 @@ La **saturazione** misura la quota di superficie stradale occupata dai veicoli i
 
 Dove `n. soste on-street` è ottenuto espandendo il campione FCD col fattore di calibrazione (×252) e applicando la percentuale on-street locale (buffer 2 m).
 
+La quota di soste on-street varia per municipio in funzione della disponibilità di parcheggi privati e della morfologia urbana:
+
+![% soste on-street per municipio](results/maps/map11_municipio_pct_onstreet.png)
+
 ![Saturazione superficie carrabile per municipio](results/maps/map13_municipio_saturazione.png)
 
 ![Saturazione superficie carrabile per cella H3](results/maps/map14_saturazione_h3.png)
@@ -294,6 +310,7 @@ Tutti i risultati sono nella cartella `results/`.
 | `map08_municipio_densita_campione.png` | Coroplete densità per municipio — campione |
 | `map09_municipio_densita_citta.png` | Coroplete densità per municipio — stima città |
 | `map10_municipio_indice_residenziale.png` | Coroplete indice residenziale per municipio |
+| `map11_municipio_pct_onstreet.png` | % soste on-street per municipio *(richiede AC_VEI)* |
 | `map12_municipio_barchart.png` | Bar chart comparativo per municipio |
 | `map13_municipio_saturazione.png` | Saturazione sup. carrabile per municipio *(richiede AC_VEI)* |
 | `map14_saturazione_h3.png` | Saturazione per cella H3 *(richiede AC_VEI)* |
