@@ -31,6 +31,15 @@ import h3
 
 warnings.filterwarnings("ignore")
 
+# ── Contextily (OSM basemap) — opzionale, con fallback automatico ─────────────
+try:
+    import contextily as ctx
+    # CartoDB Positron: sfondo chiaro, non compete con i colori dei dati
+    BASEMAP_PROVIDER = ctx.providers.CartoDB.Positron
+    HAS_CTX = True
+except ImportError:
+    HAS_CTX = False
+
 # ── Paths ────────────────────────────────────────────────────────────────────
 BASE    = os.path.dirname(os.path.abspath(__file__))
 RESULTS = os.path.join(BASE, "results")
@@ -49,6 +58,19 @@ PEAK_WINDOW_END   = 9
 FLEET_TOTAL_ROME  = 1_600_000
 
 plt.rcParams.update({"font.size": 11, "figure.dpi": 150})
+
+
+def _add_basemap(ax, fallback_color="#dcdcdc"):
+    """Aggiunge OSM basemap; se i tile non sono raggiungibili usa sfondo grigio."""
+    if HAS_CTX:
+        try:
+            ctx.add_basemap(ax, crs=TARGET_CRS,
+                            source=BASEMAP_PROVIDER,
+                            attribution_size=6)
+            return
+        except Exception:
+            pass
+    ax.set_facecolor(fallback_color)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -77,18 +99,17 @@ def hex_map_plot(hexdf, col, title, cmap, fname,
     if vmax is None:
         vmax = np.nanpercentile(data[col].dropna().values, pct_clip)
     fig, ax = plt.subplots(figsize=(14, 13))
-    ax.set_facecolor("#d0d0d0")
-    if mun_gdf is not None:
-        mun_gdf.plot(ax=ax, color="#f0f0f0", edgecolor="none")
+    # Celle esagonali semi-trasparenti così il basemap traspare sotto
     data.plot(column=col, cmap=cmap, vmin=0, vmax=vmax,
-              edgecolor="none", linewidth=0, ax=ax, alpha=0.92, legend=False)
+              edgecolor="none", linewidth=0, ax=ax, alpha=0.78, legend=False)
     if mun_gdf is not None:
-        mun_gdf.boundary.plot(ax=ax, color="#444", linewidth=1.2)
+        mun_gdf.boundary.plot(ax=ax, color="#333", linewidth=1.4)
         for _, r in mun_gdf.iterrows():
             ax.annotate(f"M{int(r['Numero'])}",
                         xy=(r.geometry.centroid.x, r.geometry.centroid.y),
-                        ha="center", va="center", fontsize=7, color="#222",
+                        ha="center", va="center", fontsize=7, color="#111",
                         path_effects=[pe.withStroke(linewidth=2, foreground="white")])
+    _add_basemap(ax)
     sm = ScalarMappable(cmap=cmap, norm=Normalize(vmin=0, vmax=vmax))
     sm.set_array([])
     cbar = fig.colorbar(sm, ax=ax, shrink=0.55, pad=0.01)
@@ -103,15 +124,16 @@ def choropleth(gdf, col, title, cmap, fname,
     vmin_ = vmin if vmin is not None else gdf[col].quantile(0.05)
     vmax_ = vmax if vmax is not None else gdf[col].quantile(0.95)
     fig, ax = plt.subplots(figsize=(12, 11))
-    ax.set_facecolor("#e8e8e8")
+    # Poligoni semi-trasparenti con bordo marcato per leggibilità
     gdf.plot(column=col, cmap=cmap, vmin=vmin_, vmax=vmax_,
-             edgecolor="#555", linewidth=1.2, ax=ax, legend=False)
+             edgecolor="#333", linewidth=1.5, ax=ax, legend=False, alpha=0.70)
     for _, row in gdf.iterrows():
         c = row.geometry.centroid
         ax.annotate(f"M{int(row['Numero'])}\n{fmt.format(row[col])}",
                     xy=(c.x, c.y), ha="center", va="center",
                     fontsize=7.5, color="white", fontweight="bold",
                     path_effects=[pe.withStroke(linewidth=2, foreground="#333")])
+    _add_basemap(ax)
     sm = ScalarMappable(cmap=cmap, norm=Normalize(vmin=vmin_, vmax=vmax_))
     sm.set_array([])
     cbar = fig.colorbar(sm, ax=ax, shrink=0.6, pad=0.02)
