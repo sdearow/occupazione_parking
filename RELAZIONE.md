@@ -176,49 +176,59 @@ La superficie occupata è stimata assumendo **12,5 m² per veicolo** (ingombro s
 
 ### STEP 10 — Analisi spaziale della sosta: mappe e indicatori per municipio
 
-Per visualizzare la distribuzione geografica della sosta è stato realizzato uno script dedicato (`map_parking.py`) che produce due famiglie di mappe.
+Per visualizzare la distribuzione geografica della sosta è stato realizzato uno script dedicato (`map_parking.py`) che produce due famiglie di mappe usando la libreria **H3** (griglia esagonale geospaziale di Uber, resolution 9, celle con lato ~174 m e area ~0,105 km²).
 
-#### A. Griglia esagonale 250 m (city-wide)
+Le mappe sono generate in **due scale**:
+- **Campione FCD:** conteggi diretti delle soste nel dataset, utili per confronti spaziali relativi.
+- **Stima città (×252):** valori espansi al parco reale tramite il fattore di calibrazione, per stime assolute (soste/km² a scala urbana).
 
-Le destinazioni di sosta vengono aggregate su una **griglia esagonale con celle di 250 m** (raggio circumscritto), coprendo l'intero Comune. Le celle mostrano la **densità di sosta** (soste/km²) e l'**indice di residenzialità** (quota di soste notturne, 20–07), quest'ultimo proxy della destinazione residenziale dei parcheggi.
+#### A. Griglia H3 — densità campione (soste/km²)
 
-![Densità di sosta — mappa esagonale totale](results/maps/map01_densita_totale.png)
+![Densità di sosta totale — campione FCD](results/maps/map01_densita_totale_campione.png)
 
-![Densità di sosta — fascia diurna 07–20](results/maps/map02_densita_diurna.png)
+![Densità di sosta diurna 07–20 — campione FCD](results/maps/map02_densita_diurna_campione.png)
 
-![Densità di sosta — fascia notturna 20–07](results/maps/map03_densita_notturna.png)
+![Densità di sosta notturna 20–07 — campione FCD](results/maps/map03_densita_notturna_campione.png)
 
-![Indice residenziale — % soste notturne](results/maps/map04_indice_residenziale.png)
+#### B. Griglia H3 — densità stima città (soste/km², scala reale)
 
-**Lettura:** la sosta si concentra nelle zone più dense della città (Municipio I, VIII e IX). L'indice residenziale evidenzia le zone periferiche, dove la quota di soste notturne è più alta — indicativo di rientri serali in zona residenziale.
+![Densità di sosta totale — stima città](results/maps/map04_densita_totale_citta.png)
 
-#### B. Coroplete per municipio
+![Densità di sosta diurna 07–20 — stima città](results/maps/map05_densita_diurna_citta.png)
 
-Le stesse metriche vengono aggregate per **municipio** e visualizzate come mappe coroplete, permettendo un confronto diretto tra le 15 circoscrizioni.
+![Densità di sosta notturna 20–07 — stima città](results/maps/map06_densita_notturna_citta.png)
 
-![Densità sosta totale per municipio](results/maps/map05_municipio_densita_totale.png)
+#### C. Indice residenziale (griglia H3)
 
-![Densità sosta diurna per municipio](results/maps/map06_municipio_densita_diurna.png)
+La quota di soste notturne (20–07) rispetto al totale è un proxy della **funzione residenziale** della sosta in quella zona: alta percentuale notturna indica che i veicoli rientrano a casa la sera e rimangono fermi tutta la notte.
 
-![Densità sosta notturna per municipio](results/maps/map07_municipio_densita_notturna.png)
+![Indice residenziale — % soste notturne (H3)](results/maps/map07_indice_residenziale.png)
 
-![Indice residenziale per municipio](results/maps/map08_municipio_indice_residenziale.png)
+**Lettura:** la sosta si concentra fortemente nei Municipi VIII e IX (Appio–Tuscolano, Cinecittà–Ardeatino), zone ad alta densità abitativa e bassa disponibilità di parcheggi privati. Il Centro Storico (Municipio I) ha una quota notturna più alta (~24%), coerente con la funzione mista residenziale/turistica e la scarsità di garage privati.
 
-#### C. Bar chart indicatori per municipio
+#### D. Coroplete per municipio
 
-![Indicatori di sosta per municipio](results/maps/map09_municipio_barchart_indicatori.png)
+Le stesse metriche vengono aggregate per **municipio**, producendo mappe coroplete che permettono un confronto diretto tra le 15 circoscrizioni a due scale.
 
-**Indicatori principali per municipio (top 5 per densità totale):**
+![Densità sosta per municipio — campione](results/maps/map08_municipio_densita_campione.png)
 
-| Municipio | Soste totali | Densità (soste/km²) | % notturne |
+![Densità sosta per municipio — stima città](results/maps/map09_municipio_densita_citta.png)
+
+![Indice residenziale per municipio](results/maps/map10_municipio_indice_residenziale.png)
+
+#### E. Bar chart comparativo per municipio
+
+![Indicatori di sosta per municipio](results/maps/map12_municipio_barchart.png)
+
+**Indicatori principali per municipio (top 5 per densità):**
+
+| Municipio | Soste campione | Densità (soste/km²) | % notturne |
 |---|---|---|---|
 | IX (ex XII) | 183.274 | 1.000 | 13,8% |
 | VIII (ex XI) | 46.995 | 999 | 14,2% |
 | I (ex I e XVII) | 12.174 | 603 | 23,9% |
 | XI (ex XV) | 31.321 | 438 | 15,9% |
 | VII (ex IX e X) | 12.449 | 272 | 20,5% |
-
-**Lettura:** i Municipi VIII e IX, che coprono le zone sud-est della città (Appio–Tuscolano, Cinecittà), mostrano la densità di sosta più alta assoluta, probabilmente per una combinazione di alta densità abitativa e uso dell'auto. Il Municipio I (Centro Storico) ha la quota notturna più alta (24%), coerente con la sua funzione mista residenziale/turistica.
 
 ---
 
@@ -259,18 +269,22 @@ Tutti i risultati sono nella cartella `results/`.
 | `fig13_stima_citta_profilo_orario.png` | Stima città, profilo orario |
 | `fig14_stima_citta_fasce_orarie.png` | Stima città per fascia |
 
-### Mappe spaziali (PNG, in `results/maps/`)
+### Mappe spaziali (PNG, in `results/maps/`) — H3 resolution 9, edge ~174 m
 | File | Contenuto |
 |---|---|
-| `map01_densita_totale.png` | Densità sosta totale — griglia esagonale 250 m |
-| `map02_densita_diurna.png` | Densità sosta fascia diurna (07–20) |
-| `map03_densita_notturna.png` | Densità sosta fascia notturna (20–07) |
-| `map04_indice_residenziale.png` | Indice residenziale (% soste notturne) |
-| `map05_municipio_densita_totale.png` | Coroplete densità totale per municipio |
-| `map06_municipio_densita_diurna.png` | Coroplete densità diurna per municipio |
-| `map07_municipio_densita_notturna.png` | Coroplete densità notturna per municipio |
-| `map08_municipio_indice_residenziale.png` | Coroplete indice residenziale per municipio |
-| `map09_municipio_barchart_indicatori.png` | Bar chart indicatori per municipio |
+| `map01_densita_totale_campione.png` | Densità totale — scala campione (soste/km²) |
+| `map02_densita_diurna_campione.png` | Densità diurna 07–20 — scala campione |
+| `map03_densita_notturna_campione.png` | Densità notturna 20–07 — scala campione |
+| `map04_densita_totale_citta.png` | Densità totale — stima città (soste/km², ×252) |
+| `map05_densita_diurna_citta.png` | Densità diurna — stima città |
+| `map06_densita_notturna_citta.png` | Densità notturna — stima città |
+| `map07_indice_residenziale.png` | Indice residenziale (% soste notturne, H3) |
+| `map08_municipio_densita_campione.png` | Coroplete densità per municipio — campione |
+| `map09_municipio_densita_citta.png` | Coroplete densità per municipio — stima città |
+| `map10_municipio_indice_residenziale.png` | Coroplete indice residenziale per municipio |
+| `map12_municipio_barchart.png` | Bar chart comparativo per municipio |
+| `map13_municipio_saturazione.png` | Saturazione sup. carrabile per municipio *(richiede AC_VEI)* |
+| `map14_saturazione_h3.png` | Saturazione per cella H3 *(richiede AC_VEI)* |
 | `11_statistiche_municipio.csv` | Statistiche aggregate per municipio |
 
 ---
