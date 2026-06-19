@@ -110,7 +110,13 @@ Gli arrivi a Roma vengono aggregati per **ora del giorno** e per **giorno della 
 
 **Andamento orario:** gli arrivi crescono dalle 6:00, raggiungono un primo plateau mattutino (8:00–12:00, ~24.000/ora) e un secondo picco serale attorno alle 18:00 (~25.000), per poi calare nelle ore notturne.
 
+![Distribuzione oraria degli arrivi](results/fig1_distribuzione_oraria.png)
+
 **Andamento settimanale:** i giorni feriali centrali (mercoledì–venerdì) registrano oltre 63.000 arrivi giornalieri; il weekend cala sensibilmente, con la domenica a ~30.000 (meno della metà del picco feriale).
+
+![Distribuzione settimanale degli arrivi](results/fig2_distribuzione_settimanale.png)
+
+![Heatmap volume per ora e giorno della settimana](results/fig3_heatmap_volume_ora_giorno.png)
 
 ### STEP 7 — Veicoli parcheggiati vs in uso
 Per stimare quanti veicoli sono fermi in ogni momento, si adotta un metodo a **snapshot orari**: per ogni ora del giorno (istantanea alle :30) si conta quanti veicoli del campione hanno un viaggio in corso (*in uso*) e quanti no (*parcheggiati*). Il calcolo è fatto giorno per giorno e poi mediato.
@@ -126,6 +132,14 @@ Il campione contiene **23.571 veicoli unici** su 32 giorni. Si considerano solo 
 | Picco di utilizzo (8:30) | 89,7% | **10,3%** |
 
 **Lettura:** anche nell'ora di massimo traffico, solo circa il 10% dei veicoli osservati è in movimento; il resto è fermo. Di notte la quota di veicoli in sosta supera il 98%.
+
+![% parcheggiati vs in uso per ora del giorno](results/fig9_pct_parcheggiati_vs_inuso_orario.png)
+
+![N. veicoli parcheggiati vs in uso (campione)](results/fig10_n_veicoli_parcheggiati_vs_inuso.png)
+
+![Heatmap % parcheggiati per ora e giorno](results/fig11_heatmap_pct_parcheggiati.png)
+
+![Confronto giorno/notte](results/fig12_confronto_giorno_notte.png)
 
 ### STEP 9 — Stime a scala di città
 
@@ -156,6 +170,56 @@ La superficie occupata è stimata assumendo **12,5 m² per veicolo** (ingombro s
 
 **Lettura:** in un qualunque momento medio della giornata, circa **1,5 milioni di veicoli** sono fermi a Roma, di cui circa **1,18 milioni su suolo stradale pubblico** — pari a circa il **10,9% della superficie carrabile** (135 km²). Di notte la quota sale leggermente, perché quasi nessun veicolo è in circolazione.
 
+![Stima città — profilo orario veicoli in movimento vs parcheggiati](results/fig13_stima_citta_profilo_orario.png)
+
+![Stima città — confronto per fasce orarie](results/fig14_stima_citta_fasce_orarie.png)
+
+### STEP 10 — Analisi spaziale della sosta: mappe e indicatori per municipio
+
+Per visualizzare la distribuzione geografica della sosta è stato realizzato uno script dedicato (`map_parking.py`) che produce due famiglie di mappe.
+
+#### A. Griglia esagonale 250 m (city-wide)
+
+Le destinazioni di sosta vengono aggregate su una **griglia esagonale con celle di 250 m** (raggio circumscritto), coprendo l'intero Comune. Le celle mostrano la **densità di sosta** (soste/km²) e l'**indice di residenzialità** (quota di soste notturne, 20–07), quest'ultimo proxy della destinazione residenziale dei parcheggi.
+
+![Densità di sosta — mappa esagonale totale](results/maps/map01_densita_totale.png)
+
+![Densità di sosta — fascia diurna 07–20](results/maps/map02_densita_diurna.png)
+
+![Densità di sosta — fascia notturna 20–07](results/maps/map03_densita_notturna.png)
+
+![Indice residenziale — % soste notturne](results/maps/map04_indice_residenziale.png)
+
+**Lettura:** la sosta si concentra nelle zone più dense della città (Municipio I, VIII e IX). L'indice residenziale evidenzia le zone periferiche, dove la quota di soste notturne è più alta — indicativo di rientri serali in zona residenziale.
+
+#### B. Coroplete per municipio
+
+Le stesse metriche vengono aggregate per **municipio** e visualizzate come mappe coroplete, permettendo un confronto diretto tra le 15 circoscrizioni.
+
+![Densità sosta totale per municipio](results/maps/map05_municipio_densita_totale.png)
+
+![Densità sosta diurna per municipio](results/maps/map06_municipio_densita_diurna.png)
+
+![Densità sosta notturna per municipio](results/maps/map07_municipio_densita_notturna.png)
+
+![Indice residenziale per municipio](results/maps/map08_municipio_indice_residenziale.png)
+
+#### C. Bar chart indicatori per municipio
+
+![Indicatori di sosta per municipio](results/maps/map09_municipio_barchart_indicatori.png)
+
+**Indicatori principali per municipio (top 5 per densità totale):**
+
+| Municipio | Soste totali | Densità (soste/km²) | % notturne |
+|---|---|---|---|
+| IX (ex XII) | 183.274 | 1.000 | 13,8% |
+| VIII (ex XI) | 46.995 | 999 | 14,2% |
+| I (ex I e XVII) | 12.174 | 603 | 23,9% |
+| XI (ex XV) | 31.321 | 438 | 15,9% |
+| VII (ex IX e X) | 12.449 | 272 | 20,5% |
+
+**Lettura:** i Municipi VIII e IX, che coprono le zone sud-est della città (Appio–Tuscolano, Cinecittà), mostrano la densità di sosta più alta assoluta, probabilmente per una combinazione di alta densità abitativa e uso dell'auto. Il Municipio I (Centro Storico) ha la quota notturna più alta (24%), coerente con la sua funzione mista residenziale/turistica.
+
 ---
 
 ## 4. File prodotti
@@ -177,7 +241,7 @@ Tutti i risultati sono nella cartella `results/`.
 | `09_stima_citta_oraria.csv` | Stime assolute città, ora per ora |
 | `10_stima_citta_sintesi.csv` | Stime assolute città per fascia |
 
-### Grafici (PNG)
+### Grafici analisi (PNG, in `results/`)
 | File | Contenuto |
 |---|---|
 | `fig1_distribuzione_oraria.png` | Arrivi per ora |
@@ -194,6 +258,20 @@ Tutti i risultati sono nella cartella `results/`.
 | `fig12_confronto_giorno_notte.png` | Confronto giorno/notte |
 | `fig13_stima_citta_profilo_orario.png` | Stima città, profilo orario |
 | `fig14_stima_citta_fasce_orarie.png` | Stima città per fascia |
+
+### Mappe spaziali (PNG, in `results/maps/`)
+| File | Contenuto |
+|---|---|
+| `map01_densita_totale.png` | Densità sosta totale — griglia esagonale 250 m |
+| `map02_densita_diurna.png` | Densità sosta fascia diurna (07–20) |
+| `map03_densita_notturna.png` | Densità sosta fascia notturna (20–07) |
+| `map04_indice_residenziale.png` | Indice residenziale (% soste notturne) |
+| `map05_municipio_densita_totale.png` | Coroplete densità totale per municipio |
+| `map06_municipio_densita_diurna.png` | Coroplete densità diurna per municipio |
+| `map07_municipio_densita_notturna.png` | Coroplete densità notturna per municipio |
+| `map08_municipio_indice_residenziale.png` | Coroplete indice residenziale per municipio |
+| `map09_municipio_barchart_indicatori.png` | Bar chart indicatori per municipio |
+| `11_statistiche_municipio.csv` | Statistiche aggregate per municipio |
 
 ---
 
