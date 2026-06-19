@@ -75,9 +75,23 @@ def _add_basemap(ax, fallback_color="#dcdcdc"):
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def is_real_shapefile(path):
-    if not os.path.exists(path): return False
-    with open(path, "rb") as f: magic = f.read(4)
-    return magic == b'\x00\x00\x27\x0a'
+    """True se il file è uno shapefile reale (magic 0x0000270a) e non un
+    pointer Git LFS o un file mancante. Stampa diagnostica se sospetto."""
+    if not os.path.exists(path):
+        print(f"  [AC_VEI] file non trovato: {path}")
+        return False
+    size = os.path.getsize(path)
+    with open(path, "rb") as f:
+        magic = f.read(4)
+    if magic == b'\x00\x00\x27\x0a':
+        return True
+    # Diagnostica: distingue pointer LFS da file corrotto
+    if magic.startswith(b'vers') or size < 1000:
+        print(f"  [AC_VEI] sembra un pointer Git LFS non scaricato "
+              f"({size} byte). Esegui: git lfs pull")
+    else:
+        print(f"  [AC_VEI] magic bytes inattesi: {magic!r} (size {size} byte)")
+    return False
 
 
 def h3_cell_to_polygon(cell):
