@@ -7,6 +7,34 @@
 
 ---
 
+## Executive summary
+
+Questa analisi stima **dove**, **quando** e **quanto** i veicoli sostano nel Comune di Roma, partendo da 411.356 spostamenti GPS reali (Floating Car Data) di marzo 2023, incrociati con i limiti amministrativi comunali e con la superficie carrabile cittadina.
+
+**Risultati principali**
+
+- **Filtraggio territoriale.** L'**86,8%** degli spostamenti (357.117) ha destinazione interna al Comune di Roma; il restante 13,2% è stato escluso.
+
+- **Dove si parcheggia.** Il **65%** delle soste avviene esattamente sulla superficie stradale pubblica (*on-street*). Applicando una tolleranza di **2 metri** — coerente con l'errore tipico del GPS urbano — la quota sale al **76%**, e con 5 metri all'84%. La maggior parte della sosta è quindi **su strada**, non in aree private: i punti inizialmente classificati "fuori strada" sono in gran parte a ridosso della carreggiata.
+
+- **Quanti veicoli sono fermi.** In un momento medio della giornata, oltre il **94%** dei veicoli osservati è parcheggiato; di notte (23–05) la quota supera il **98%**. Anche nell'ora di punta mattutina solo circa il 10% dei veicoli è in movimento.
+
+- **Stime a scala di città.** Calibrando il campione sul dato reale di **300.000 veicoli unici** in circolazione nella fascia di punta 07–09 (fattore di espansione ≈ 217×) e considerando un parco veicolare totale di **1.600.000 mezzi**, si stima che in un momento medio siano fermi a Roma circa **1,5 milioni di veicoli**, di cui circa **1,18 milioni su suolo stradale pubblico**. Questo equivale a occupare circa l'**11% della superficie carrabile** comunale (135 km²).
+
+**Sintesi quantitativa (stima media giornaliera, scala città)**
+
+| Indicatore | Valore stimato |
+|---|---|
+| Veicoli in movimento | ~61.000 (3,8%) |
+| Veicoli parcheggiati | ~1.540.000 (96,2%) |
+| di cui su strada (on-street, ≤2 m) | ~1.180.000 |
+| di cui fuori strada (off-street) | ~360.000 |
+| Superficie carrabile occupata | ~10,9% |
+
+**Avvertenza.** Le stime assolute sono **ordini di grandezza** dipendenti dai parametri di calibrazione (riferimento di punta, parco totale, ingombro per veicolo) e dalla rappresentatività del campione FCD. La direzione prevalente delle incertezze porta a una **leggera sovrastima** della sosta su strada; i valori vanno letti come limite superiore ragionevole, con incertezza dell'ordine di **±15–25%**. Il dettaglio dei limiti è alla sezione 6.
+
+---
+
 ## 1. Obiettivo dell'analisi
 
 L'analisi si propone di rispondere a tre domande sulla sosta veicolare a Roma, a partire da dati GPS reali di veicoli in circolazione:
